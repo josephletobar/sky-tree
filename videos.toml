@@ -1,0 +1,10 @@
+# Pick one of the names below, then run: python3 run_video.py
+# Available names (copy one into selected):
+# DJI_0157_d4_01
+# DJI_0216_d4_01
+# uav0000073_00600_v_01
+# uav0000073_04464_v_01
+# uav0000243_00001_v_01
+# uav0000323_01173_v_02
+
+selected = "DJI_0157_d4_01"
