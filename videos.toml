@@ -9,3 +9,4 @@
 
 selected = "DJI_0157_d4_01"
 top_split = 8
+samples_per_segment = 3
