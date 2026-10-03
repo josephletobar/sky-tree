@@ -1,5 +1,6 @@
 import base64
 import json
+import os
 import sys
 from pathlib import Path
 from urllib.request import Request, urlopen
@@ -16,14 +17,15 @@ If only one image is provided, summarize that frame without inferring motion.
 MODEL = "hf.co/google/gemma-4-31B-it-qat-q4_0-gguf:latest"
 
 
-def summarize_images(image_paths):
+def summarize_images(image_paths, prompt=PROMPT):
     images = [base64.b64encode(image if isinstance(image, bytes) else Path(image).read_bytes()).decode()
               for image in image_paths]
     payload = {
         "model": MODEL,
-        "messages": [{"role": "user", "content": PROMPT, "images": images}],
+        "messages": [{"role": "user", "content": prompt, "images": images}],
         "stream": False,
         "think": False,
+        "keep_alive": os.getenv("SKYTREE_KEEP_ALIVE", "0"),
         "options": {"num_ctx": 8192, "num_predict": 512, "temperature": 0.2},
     }
     request = Request("http://localhost:11434/api/chat",

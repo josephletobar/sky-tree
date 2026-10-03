@@ -1,6 +1,7 @@
 .venv/
 __pycache__/
 *.pyc
+summaries/
 .agents/
 .codex/
 .aws/
