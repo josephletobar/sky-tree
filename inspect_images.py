@@ -9,8 +9,10 @@ from video_utils import sample_frames, uniform_samples
 
 PROMPT = """Answer the question using the supplied video frames.
 The images are grouped by leaf node and listed in chronological order. Each
-group has a node ID and an exclusive frame range; its images are the start,
-middle, and end frames of that range. Use the actual pixels as the evidence.
+group has a node ID and a time range in seconds; its images are sampled at the
+listed times. Use the actual pixels as the evidence.
+The timeline starts at 0 and ends at video_duration_seconds. Treat that as a
+hard boundary: reject any answer option whose time range extends beyond it.
 Use goal_summary as the task definition while preserving the original question.
 If answer options are supplied, use the images to choose the best option and
 include the selected option in the answer.
@@ -56,6 +58,11 @@ def inspect_video(video_path, tree, state):
     if not video.isOpened():
         raise ValueError(f"Could not open video: {video_path}")
     fps = video.get(cv2.CAP_PROP_FPS) or 0
+    total_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
+    if fps <= 0:
+        video.release()
+        raise ValueError(f"Could not determine video FPS: {video_path}")
+    video_duration = total_frames / fps
     images = []
     groups = []
     try:
@@ -64,8 +71,12 @@ def inspect_video(video_path, tree, state):
             start = int(node["start"])
             end = int(node["end"])
             indices = uniform_samples(start, end, 3)
-            groups.append({"id": node_id, "start": start, "end": end,
-                           "frames": indices})
+            groups.append({
+                "id": node_id,
+                "start_seconds": round(start / fps, 3),
+                "end_seconds": round(end / fps, 3),
+                "sample_times_seconds": [round(index / fps, 3) for index in indices],
+            })
             images.extend(sample_frames(video, start, end, 3))
     finally:
         video.release()
@@ -74,9 +85,10 @@ def inspect_video(video_path, tree, state):
         "question": state["question"],
         "options": state.get("options"),
         "goal_summary": state.get("goal_summary", state["question"]),
-        "fps": fps,
+        "video_duration_seconds": round(video_duration, 3),
+        "timeline_seconds": [0, round(video_duration, 3)],
         "groups": groups,
-        "image_order": "For each group, images appear as start, middle, end; duplicate frames are included once.",
+        "image_order": "For each group, images appear in the order of sample_times_seconds.",
     }
     raw_answer = summarize_images(images, PROMPT + "\n" + json.dumps(context))
     try:
@@ -91,7 +103,8 @@ def inspect_video(video_path, tree, state):
     except (json.JSONDecodeError, ValueError):
         answer = {"answer": raw_answer, "evidence": []}
     return {"question": state["question"], "video": str(video_path),
-            "fps": fps, "leaf_nodes": groups, **answer}
+            "fps": fps, "video_duration_seconds": round(video_duration, 3),
+            "leaf_nodes": groups, **answer}
 
 
 def main():

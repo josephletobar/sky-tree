@@ -12,14 +12,15 @@ Choose a video name in `videos.toml`. Videos are loaded from
 `/home/joseph/reva_hard_examples/videos` (change the path in `run_video.py` if needed).
 Press **Q** to quit.
 
-Choose nodes for a question with Gemma through your local Ollama server:
+Run adaptive evidence search with Gemma through your local Ollama server:
 
 ```bash
-.venv/bin/python choose_nodes.py summaries/DJI_0157_d4_01/pasted_tree.json "Your question" --level 1
+.venv/bin/python choose_nodes.py summaries/DJI_0157_d4_01/pasted_tree.json "Your question" --video /path/to/video.mp4
 ```
 
-The root is level 0. Results and nested progress are saved beside the input
-as `traversal_plan.json`. Four is the maximum number of active branches.
+The search begins with uniform top-level coverage. Each round independently
+retains, expands, or prunes every evidence node. Expansion replaces its parent.
+The full action trace is saved beside the tree as `search_trace.json`.
 
 To run the full search one level at a time:
 
@@ -27,25 +28,35 @@ To run the full search one level at a time:
 .venv/bin/python orchestrate_search.py summaries/DJI_0157_d4_01/pasted_tree.json "Your question"
 ```
 
-The runner compares the complete candidate row in one call before moving to the
-next depth. It stops when every remaining branch reaches a leaf.
+The runner uses the same adaptive search and then sends its mixed-resolution
+evidence to the shared visual answer and tool pipeline.
 
-For manual child selection:
+Use the search directly from Python:
 
 ```python
 import json
 from pathlib import Path
-from choose_nodes import NodeChooser
+from choose_nodes import AdaptiveEvidenceSearch
 
 tree = json.loads(Path("summaries/DJI_0157_d4_01/pasted_tree.json").read_text())
-chooser = NodeChooser(tree, output_path="traversal_plan.json")
-state = chooser.orchestrate("Your question", level=1)
-node_id = next(iter(state["active_nodes"]))
-state = chooser.choose_children(node_id)
-print(chooser.progress)
+search = AdaptiveEvidenceSearch(tree, output_path="search_trace.json",
+                                video_path="/path/to/video.mp4")
+search.initialize("Your question")
+while not search.answered:
+    search.step()
+print(search.state())
 ```
 
-Omit `output_path` to keep state in memory. Calling `orchestrate` again starts
-a fresh search after its response passes validation. Selected IDs use tree
-positions (`root/0/1`), rather than frame ranges. Existing saved plans use the
-old format; running the new CLI replaces them with the new state format.
+Run any supported method through the same ReVA interface:
+
+```bash
+python3 method_adapter.py --method skytree --split val --limit 20
+python3 method_adapter.py --method longvideor1 --split test
+python3 method_adapter.py --method vts --split test
+```
+
+Each run resumes from `results.jsonl`, saves its per-question traces, and writes
+`predictions.json`. A Codabench-ready `submission.zip` is created once every
+question in the split has a valid prediction. The available method names are
+`skytree`, `longvideor1`, `vts`, and `videotree`; the released VideoTree code
+must be preprocessed before its QA stage can run.
