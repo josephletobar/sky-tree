@@ -12,35 +12,37 @@ Choose a video name in `videos.toml`. Videos are loaded from
 `/home/joseph/reva_hard_examples/videos` (change the path in `run_video.py` if needed).
 Press **Q** to quit.
 
-Run adaptive evidence search with Gemma through your local Ollama server:
+Run temporal-window evidence search with Gemma through your local Ollama server:
 
 ```bash
-.venv/bin/python choose_nodes.py summaries/DJI_0157_d4_01/pasted_tree.json "Your question" --video /path/to/video.mp4
+.venv/bin/python interval_search.py summaries/DJI_0157_d4_01/pasted_tree.json /path/to/video.mp4 "Your question"
 ```
 
-The search begins with uniform top-level coverage. Each round independently
-retains, expands, or prunes every evidence node. Expansion replaces its parent.
-The full action trace is saved beside the tree as `search_trace.json`.
+The eight top-level summaries form a high-recall index. Gemma sees eight labeled
+frames across the complete video, then answers or zooms into an arbitrary time
+interval. It can zoom back out, inspect another interval, and preserve selected
+frames between rounds. Recursive tree children are ignored. The trace is saved
+beside the summary tree as `interval_trace.json`.
 
-To run the full search one level at a time:
+To run search and the final visual tool pipeline together:
 
 ```bash
-.venv/bin/python orchestrate_search.py summaries/DJI_0157_d4_01/pasted_tree.json "Your question"
+.venv/bin/python orchestrate_search.py summaries/DJI_0157_d4_01/pasted_tree.json "Your question" --video /path/to/video.mp4
 ```
 
-The runner uses the same adaptive search and then sends its mixed-resolution
-evidence to the shared visual answer and tool pipeline.
+The runner sends only the selected frames to the shared Crop/SAM/final-answer
+pipeline.
 
 Use the search directly from Python:
 
 ```python
 import json
 from pathlib import Path
-from choose_nodes import AdaptiveEvidenceSearch
+from interval_search import IntervalSearch
 
 tree = json.loads(Path("summaries/DJI_0157_d4_01/pasted_tree.json").read_text())
-search = AdaptiveEvidenceSearch(tree, output_path="search_trace.json",
-                                video_path="/path/to/video.mp4")
+search = IntervalSearch(tree, "/path/to/video.mp4",
+                        output_path="interval_trace.json")
 search.initialize("Your question")
 while not search.answered:
     search.step()
