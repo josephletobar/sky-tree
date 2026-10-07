@@ -9,7 +9,7 @@ from urllib.request import Request, urlopen
 
 import cv2
 
-from choose_nodes import MODEL
+from interval_search import MODEL
 from orchestrate_search import run_search
 from video_utils import sample_frames, split_to_n, uniform_samples
 
